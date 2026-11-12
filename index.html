@@ -1,0 +1,269 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2 Player Ludo</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#171b35;color:white;
+ font-family:Arial;text-align:center;padding:15px
+}
+h1{color:#ffda55}
+.game{
+ max-width:500px;margin:auto;
+ background:#252b4d;padding:15px;
+ border-radius:20px
+}
+canvas{
+ width:100%;max-width:420px;
+ background:#fff;border-radius:15px;
+ touch-action:manipulation
+}
+button{
+ padding:14px 25px;border:0;
+ border-radius:12px;font-size:18px;
+ font-weight:bold;cursor:pointer;
+ margin:10px;background:#ffda55;
+ color:#171b35
+}
+#status{font-size:18px;margin:12px}
+#dice{font-size:45px}
+</style>
+</head>
+<body>
+
+<h1>🎲 SUPER LUDO</h1>
+<div class="game">
+ <div id="status">Red Player की बारी</div>
+ <div id="dice">🎲</div>
+ <canvas id="board" width="600" height="600"></canvas>
+ <button onclick="rollDice()">ROLL DICE 🎲</button>
+ <button onclick="resetGame()">NEW GAME ↻</button>
+ <p>🔴 Player 1 &nbsp;&nbsp; 🟢 Player 2</p>
+</div>
+
+<script>
+const canvas=document.getElementById("board");
+const ctx=canvas.getContext("2d");
+
+const path=[];
+const N=52;
+
+// Circular Ludo track
+for(let i=0;i<N;i++){
+ let a=-Math.PI/2+i*2*Math.PI/N;
+ path.push({
+  x:300+215*Math.cos(a),
+  y:300+215*Math.sin(a)
+ });
+}
+
+const colors=["#f04444","#21b96b"];
+const players=[
+ {name:"Red Player",color:colors[0],start:0,tokens:[-1,-1,-1,-1],home:[]},
+ {name:"Green Player",color:colors[1],start:26,tokens:[-1,-1,-1,-1],home:[]}
+];
+
+let turn=0;
+let dice=0;
+let rolling=false;
+let finished=[0,0];
+
+function draw(){
+ ctx.clearRect(0,0,600,600);
+
+ // Board background
+ ctx.fillStyle="#f1f1f1";
+ ctx.beginPath();
+ ctx.arc(300,300,270,0,Math.PI*2);
+ ctx.fill();
+
+ // Home bases
+ players.forEach((p,id)=>{
+  let a=id===0?-Math.PI/2:Math.PI/2;
+  let x=300+110*Math.cos(a);
+  let y=300+110*Math.sin(a);
+
+  ctx.fillStyle=p.color;
+  ctx.beginPath();
+  ctx.arc(x,y,75,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="white";
+  ctx.font="bold 18px Arial";
+  ctx.textAlign="center";
+  ctx.fillText(p.name,x,y-90);
+
+  p.tokens.forEach((pos,t)=>{
+   let tx,ty;
+   if(pos===-1){
+    let offsets=[[-27,-27],[27,-27],[-27,27],[27,27]];
+    tx=x+offsets[t][0];
+    ty=y+offsets[t][1];
+   }else if(pos>=52){
+    let h=pos-52;
+    tx=x+(h%2===0?-15:15);
+    ty=y-35-Math.floor(h/2)*20;
+   }else{
+    let index=(p.start+pos)%52;
+    tx=path[index].x;
+    ty=path[index].y;
+   }
+
+   ctx.fillStyle="white";
+   ctx.beginPath();
+   ctx.arc(tx,ty,17,0,Math.PI*2);
+   ctx.fill();
+
+   ctx.fillStyle=p.color;
+   ctx.beginPath();
+   ctx.arc(tx,ty,12,0,Math.PI*2);
+   ctx.fill();
+
+   ctx.fillStyle="white";
+   ctx.font="bold 12px Arial";
+   ctx.fillText(t+1,tx,ty+4);
+  });
+ });
+
+ // Track
+ path.forEach((p,i)=>{
+  ctx.fillStyle="#fff";
+  ctx.beginPath();
+  ctx.arc(p.x,p.y,16,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle="#555";
+  ctx.lineWidth=2;
+  ctx.stroke();
+
+  if(i===0 || i===26){
+   ctx.fillStyle=i===0?colors[0]:colors[1];
+   ctx.beginPath();
+   ctx.arc(p.x,p.y,8,0,Math.PI*2);
+   ctx.fill();
+  }
+ });
+
+ // Center
+ ctx.fillStyle="#ffda55";
+ ctx.beginPath();
+ ctx.arc(300,300,35,0,Math.PI*2);
+ ctx.fill();
+ ctx.fillStyle="#222";
+ ctx.font="bold 20px Arial";
+ ctx.textAlign="center";
+ ctx.fillText("HOME",300,307);
+}
+
+function update(){
+ document.getElementById("status").innerText=
+ players[turn].name+" की बारी";
+ draw();
+}
+
+function rollDice(){
+ if(rolling || finished[0] || finished[1])return;
+ rolling=true;
+
+ dice=Math.floor(Math.random()*6)+1;
+ document.getElementById("dice").innerText=
+ ["","⚀","⚁","⚂","⚃","⚄","⚅"][dice];
+
+ let p=players[turn];
+ let available=p.tokens
+  .map((v,i)=>({v,i}))
+  .filter(t=>t.v===-1?dice===6:t.v<57);
+
+ if(available.length===0){
+  document.getElementById("status").innerText=
+  "कोई चाल नहीं! दूसरी बारी।";
+  setTimeout(()=>{
+   turn=1-turn;
+   rolling=false;
+   update();
+  },800);
+  return;
+ }
+
+ document.getElementById("status").innerText=
+ "अपनी गोटी चुनो (1, 2, 3 या 4)";
+
+ setTimeout(()=>{
+  let choice=available[Math.floor(Math.random()*available.length)];
+  moveToken(choice.i);
+ },700);
+}
+
+function moveToken(i){
+ if(!rolling)return;
+
+ let p=players[turn];
+ let old=p.tokens[i];
+
+ if(old===-1){
+  if(dice!==6)return;
+  p.tokens[i]=0;
+ }else{
+  if(old+dice>57){
+   rolling=false;
+   return;
+  }
+  p.tokens[i]+=dice;
+ }
+
+ let pos=p.tokens[i];
+
+ // Capture opponent
+ if(pos<52){
+  let global=(p.start+pos)%52;
+  let safe=[0,13,26,39];
+
+  if(!safe.includes(global)){
+   let enemy=players[1-turn];
+   enemy.tokens.forEach((v,j)=>{
+    if(v>=0 && v<52 &&
+    (enemy.start+v)%52===global){
+     enemy.tokens[j]=-1;
+     document.getElementById("status").innerText=
+     "⚔️ गोटी काट दी!";
+    }
+   });
+  }
+ }
+
+ // Win check
+ if(p.tokens.every(v=>v===57)){
+  finished[turn]=1;
+  document.getElementById("status").innerText=
+  "🏆 "+p.name+" जीत गया!";
+  rolling=false;
+  draw();
+  return;
+ }
+
+ draw();
+
+ let extra=dice===6;
+ rolling=false;
+
+ if(!extra)turn=1-turn;
+ update();
+}
+
+function resetGame(){
+ players.forEach(p=>p.tokens=[-1,-1,-1,-1]);
+ turn=0;
+ dice=0;
+ rolling=false;
+ finished=[0,0];
+ document.getElementById("dice").innerText="🎲";
+ update();
+}
+
+update();
+</script>
+</body>
+</html>
